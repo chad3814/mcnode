@@ -1,0 +1,38 @@
+<html>
+  <head>
+    <title>Minecraft Traffic Dump</title>
+    <script src="/socket.io/socket.io.js" type="text/javascript"></script>
+   <link href='minecraft.css' rel='stylesheet' type='text/css'/>
+  </head>
+  <body>
+    <table width='100%' border='0' cellspacing='0'>
+      <tbody>
+	<tr>
+	  <td id='data' rowspan='2'><div style='text-align:center'>Data</div></td>
+	  <td><iframe id='hexdump'></iframe></td>
+	</tr>
+	<tr>
+	  <td><iframe id='packetlog'></iframe></td>
+	</tr>
+     </tbody>
+    </table>    
+    <script src="minecraft.js" type="text/javascript"></script>
+    <script type="text/javascript">
+	 var socket = new io.Socket()
+	 socket.on('connect', function() {
+	 	log("socket.io connected");
+	 });
+	 socket.on('message', function(msg) {
+	 	log(msg);
+	 });
+	 socket.on('disconnect', function() {
+	 	log("socket.io disconnected");
+	 });
+	 socket.on('error', function() {
+	 	log("socket.io error");
+	 });
+	 console.log('connecting');
+	 socket.connect();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,70 @@
+body {
+    font-size: 10px;
+    padding: 4px;
+}
+
+table, td {
+    font-size: 10px;
+}
+
+#hexdump_wrapper {
+    border: 1px solid black;
+    background: #AAAAFF;
+    padding: 0;
+    margin: 3px;
+    width: 76em;
+}
+
+#hexdump {
+    border: 1px solid black;
+    padding: 2px;
+    margin: 0;
+    margin-left: 3px;
+    margin-right: 3px;
+    background: #DDDDDD;
+    font-family: "Courier New", monospace;
+    width: 84em;
+    height: 24em;
+    overflow: scroll;
+    white-space: pre;
+}
+
+#packetlog {
+    width: 84em;
+    overflow: scroll;
+}
+
+.title {
+    font-weight: bold;
+    font-size: 110%;
+    padding: 8px;
+}
+
+.entry {
+    border: 1px solid black;
+    margin: 2px;
+}
+
+.info {
+    background-color: #FF8888;
+}
+
+.server {
+    background-color: #88FF88;
+}
+
+#hexdump .server {
+    background-color:#DDFFDD;
+    padding: 2px;
+    border: 1px solid #AAAAAA;
+}
+
+.client {
+    background-color: #8888FF;
+}
+
+#hexdump .client {
+    background-color:#DDDDFF;
+    padding: 2px;
+    border: 1px solid #AAAAAA;
+}
