@@ -1,0 +1,22 @@
+body {
+    font-size: 10px;
+    padding: 2px;
+    margin: 0;
+    margin-left: 3px;
+    margin-right: 3px;
+    background: #DDDDDD;
+    font-family: "Courier New", monospace;
+    white-space: pre;
+}
+
+.server {
+    background-color:#DDFFDD;
+    padding: 2px;
+    border: 1px solid #AAAAAA;
+}
+
+.client {
+    background-color:#DDDDFF;
+    padding: 2px;
+    border: 1px solid #AAAAAA;
+}

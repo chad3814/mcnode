@@ -11,7 +11,7 @@
 	},
 	"web_listen":{
 		"ip":"0.0.0.0",
-		"port":8080,
+		"port":80,
 		"allow_cidr":["0.0.0.0/0"],
 		"deny_cidr":[]
 	}

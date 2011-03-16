@@ -54,7 +54,7 @@ try {
     };
 }
 
-util.log("running with config:\n" + util.inspect(config, false, null));
+//util.log("running with config:\n" + util.inspect(config, false, null));
 
 //util functions for ip's
 var ip2long = function(ip) {
@@ -73,7 +73,7 @@ var lastcidr = function(iplong, mask) {
 var inRange = function(ip, ranges) {
     var iplong = ip2long(ip);
     for(var i = 0; i < ranges.length; ++i) {
-	util.debug('ranges['+i+'][0]: ' + ranges[i][0] + '; ranges['+i+'][1]: ' + ranges[i][1] + '; iplong: ' + iplong);
+	//util.debug('ranges['+i+'][0]: ' + ranges[i][0] + '; ranges['+i+'][1]: ' + ranges[i][1] + '; iplong: ' + iplong);
 	if(ranges[i][0] <= iplong && iplong <= ranges[i][1]) return true;
     }
     return false;
@@ -739,7 +739,7 @@ var parser = (function() {
 
 // start listening for minecraft clients
 var mc_server = net.createServer(function(c) {
-    util.log('config: ' + util.inspect(config, false, null));
+    //util.log('config: ' + util.inspect(config, false, null));
     if(!inRange(c.remoteAddress, config.mc_listen.allow_range) ||
        inRange(c.remoteAddress, config.mc_listen.deny_range)) {
 	c.end();
@@ -751,6 +751,7 @@ var mc_server = net.createServer(function(c) {
     // create a new connection to the server
     var mc = new net.Socket();
     mc.on('connect', function() {
+	util.log('connected to minecraft server');
 	c.pipe(mc);
 	mc.pipe(c);
     });
@@ -791,24 +792,32 @@ var mc_server = net.createServer(function(c) {
 	}
     });
     mc.on('end', function() {
+	util.debug('server connection got "end"');
 	c.end();
     });
     mc.on('error', function(exception) {
+	util.debug('server connection got "error"');
 	c.end();
     });
     mc.on('close', function(had_error) {
+	util.debug('server connection got "close"');
 	c.end();
     });
     c.on('end', function() {
+	util.debug('client connection got "end"');
 	mc.end();
     });
     c.on('error', function(exception) {
+	util.debug('client connection got "error"');
 	mc.end();
     });
     c.on('close', function(had_error) {
+	util.debug('client connection got "close"');
 	mc.end();
     });
-    mc.connect(config.server.port, config.server.ip);
+    mc.connect(config.server.port, config.server.ip, function() {
+	util.log('connected to minecraft server ' + config.server.ip + ':' + config.server.port);
+    });
 });
 
 // start the server

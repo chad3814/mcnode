@@ -1,6 +1,19 @@
-var hexdump = document.getElementById('hexdump');
-var packetlog = document.getElementById('packetlog');
-hexdump.contentDocument.head
+var hexdump = document.getElementById('hexdump').contentDocument;
+var css = hexdump.createElement('link');
+css.href = window.location.origin + '/hexdump.css';
+css.rel = 'stylesheet';
+css.type = 'text/css';
+hexdump.head.appendChild(css);
+hexdump = hexdump.body;
+
+var packetlog = document.getElementById('packetlog').contentDocument;
+css = packetlog.createElement('link');
+css.href = window.location.origin + '/packetlog.css';
+css.rel = 'stylesheet';
+css.type = 'text/css';
+packetlog.head.appendChild(css);
+packetlog = packetlog.body;
+
 var log = (function() {
     var msgs = [];
 
@@ -10,25 +23,6 @@ var log = (function() {
 	var _add_to_dump = function(msgid) {
 	    var line = msgs[msgid]['raw'];
 	    
-	    //console.log('current_index: ' + current_index + '(' + Number(current_index).toString(16) + ')');
-	    // if((current_index % 16) != 0 && hexdump.lastChild) {
-	    // 	var need = current_index % 16;
-	    // 	var prepend = '';
-	    // 	var mid = msgid - 1;
-	    // 	while(need > 0 && msgs[mid]) {
-	    // 	    if(msgs[mid]['raw']) {
-	    // 		prepend = msgs[mid]['raw'] + prepend;
-	    // 		need -= msgs[mid]['raw'].length / 2;
-	    // 	    }
-	    // 	    --mid;
-	    // 	}
-	    // 	prepend.substr(-1 * (current_index % 16) * 2);
-	    // 	line = prepend + line;
-	    // 	hexdump.removeChild(hexdump.lastChild);
-	    // 	current_index -= (prepend.length / 2);
-	    // }
-	    // console.log('current_index: ' + current_index + '(' + Number(current_index).toString(16) + ')');
-
 	    child = document.createElement('div');
 	    if(msgs[msgid]['from'] == 'server') {
 		child.className = 'server';
@@ -91,7 +85,7 @@ var log = (function() {
 		// console.log(text);
 		child.innerHTML += text;
 	    }
-	    hexdump.contentDocument.body.appendChild(child);
+	    hexdump.appendChild(child);
 	};
 
 	return _add_to_dump;
@@ -112,6 +106,8 @@ var log = (function() {
 
 	child = document.createElement('div');
 	child.className = 'entry';
+	child.title = 'message id ' + msgid;
+
 	if(msg['from'] == 'server' || msg['from'] == 'info') {
 	    child.className += ' ' + msg['from'];
 	} else {
@@ -146,7 +142,7 @@ var log = (function() {
 	}
 	child.appendChild(tab);
 	//document.body.appendChild(child);
-	packetlog.contentDocument.body.appendChild(child);
+	packetlog.appendChild(child);
 	//if(!hexdump) window.scrollTo(0, document.body.scrollHeight);
     };
 
