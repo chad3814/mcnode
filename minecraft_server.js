@@ -4,32 +4,112 @@ var io = require('socket.io');
 var fs = require('fs');
 var EventEmitter = require('events').EventEmitter
 var path = require('path');
+var util = require('util');
 
 var cwd = process.cwd();
-console.log('starting in ' + cwd);
+util.log('starting in ' + cwd);
 var jspack = require(cwd + '/jspack.js').jspack;
 
+var joose = require('task-joose-nodejs');
+var Class = joose.Class;
+var Role = joose.Role;
+var Module = joose.Module;
+require('JSON2');
 
-var Mutex = function() {
-    var queue = new EventEmitter();
-    var locked = false;
-    this.lock = function lock(fn) {
-        if (locked) {
-            queue.once('ready',function() {
-                lock(fn);
-            });
-        } else {
-            locked = true;
-            fn();
-        }
-    }
-    this.release = function release() {
-        locked = false;
-        queue.emit('ready');
-    }
+var config = null;
+try {
+    config = JSON.parse(fs.readFileSync(cwd + '/config.json'));
+
+    fs.watchFile(cwd + '/config.json', function(cur, prev) {
+	if(cur.mtime.getTime() != prev.mtime.getTime()) {
+	    fs.readFile(cwd + '/config.json', function(err, data) {
+		if(err) throw err;
+		config = JSON.parse(data);
+		util.log('reloaded config');
+	    });
+	}
+    });
+} catch(err) {
+    util.log('error reading config.json, using defaults');
+    util.log('Error: ' + err.message);
+    util.log('Stack: ' + err.stack);
+    // default
+    config = {
+	'server':{
+	    'ip':'127.0.0.1',
+	    'port':25566
+	},
+	'mc_listen':{
+	    'ip':'0.0.0.0',
+	    'port':25565,
+	    'allow_cidr':['0.0.0.0/0'],
+	    'deny_cidr':[]
+	},
+	'web_listen':{
+	    'ip':'0.0.0.0',
+	    'port':8080,
+	    'allow_cidr':['0.0.0.0/0'],
+	    'deny_cidr':[]
+	}
+    };
 }
 
+util.log("running with config:\n" + util.inspect(config, false, null));
 
+//util functions for ip's
+var ip2long = function(ip) {
+    var ips = ip.split('.');
+    var iplong = 0;
+    with (Math) {
+	iplong = ips[0] * pow(256,3) + ips[1] * pow(256,2) + ips[2] * 256 + ips[3] * 1;
+    }
+    return iplong;
+};
+
+var lastcidr = function(iplong, mask) {
+    return iplong + Math.pow(2, (32 - mask)) - 1;
+};
+
+var inRange = function(ip, ranges) {
+    var iplong = ip2long(ip);
+    for(var i = 0; i < ranges.length; ++i) {
+	util.debug('ranges['+i+'][0]: ' + ranges[i][0] + '; ranges['+i+'][1]: ' + ranges[i][1] + '; iplong: ' + iplong);
+	if(ranges[i][0] <= iplong && iplong <= ranges[i][1]) return true;
+    }
+    return false;
+};
+
+// calculate CIDR ranges
+config.mc_listen.allow_range = new Array();
+for(var cidr in config.mc_listen.allow_cidr) {
+    cidr = config.mc_listen.allow_cidr[cidr].split('/');
+    var firstip = ip2long(cidr[0]);
+    var lastip = lastcidr(firstip, cidr[1]);
+    config.mc_listen.allow_range.push([firstip, lastip]);
+}
+config.mc_listen.deny_range = new Array();
+for(var cidr in config.mc_listen.deny_cidr) {
+    cidr = config.mc_listen.deny_cidr[cidr].split('/');
+    var firstip = ip2long(cidr[0]);
+    var lastip = lastcidr(firstip, cidr[1]);
+    config.mc_listen.deny_range.push([firstip, lastip]);
+}
+config.web_listen.allow_range = new Array();
+for(var cidr in config.web_listen.allow_cidr) {
+    cidr = config.web_listen.allow_cidr[cidr].split('/');
+    var firstip = ip2long(cidr[0]);
+    var lastip = lastcidr(firstip, cidr[1]);
+    config.web_listen.allow_range.push([firstip, lastip]);
+}
+config.web_listen.deny_range = new Array();
+for(var cidr in config.web_listen.deny_cidr) {
+    cidr = config.web_listen.deny_cidr[cidr].split('/');
+    var firstip = ip2long(cidr[0]);
+    var lastip = lastcidr(firstip, cidr[1]);
+    config.web_listen.deny_range.push([firstip, lastip]);
+}
+
+// sends a file in response to an HTTP request
 var sendFile = (function() {
     var index = {};
     var send = function(filename, res) {
@@ -39,15 +119,15 @@ var sendFile = (function() {
 		index[filename] = data;
 		res.writeHead(200, {'Content-Type': 'text/html'});
 		res.end(index[filename]);
-		console.log('cached ' + filename);
+		util.log('cached ' + filename);
 	    });
 	    fs.watchFile(filename, function(cur, prev) {
 		if(cur.mtime.getTime() != prev.mtime.getTime()) {
-		    console.log(filename + ': ' + cur.mtime + ' != ' + prev.mtime);
+		    util.log(filename + ': ' + cur.mtime + ' != ' + prev.mtime);
 		    fs.readFile(filename, 'utf8', function(err, data) {
 			if(err) throw err;
 			index[filename] = data;
-			console.log('updated cache of ' + filename);
+			util.log('updated cache of ' + filename);
 		    });
 		}
 	    });
@@ -60,25 +140,36 @@ var sendFile = (function() {
     return send;
 })();
 
+// configure web server
 var web_server = http.createServer(function(req, res) {
-    console.log('got request for: ' + req.url);
+    if(!inRange(req.socket.remoteAddress, config.web_listen.allow_range) ||
+       inRange(req.socket.remoteAddress, config.web_listen.deny_range)) {
+	res.writeHeader(405);
+	res.end();
+	util.log('denied web connection from ' + req.socket.remoteAddress);
+	return;
+    }
+    util.log('got request for: ' + req.url + '; from: ' + req.socket.remoteAddress);
     if(req.url == '/') req.url = '/index.html';
-    console.log('translated to: ' + cwd + req.url);
+    util.log('translated to: ' + cwd + req.url);
     path.exists(cwd + req.url, function(exists) {
 	if(exists) {
 	    sendFile(cwd + req.url, res);
 	} else {
-	    console.log('request for unknown file ' + req.url);
+	    util.log('request for unknown file ' + req.url);
 	    res.writeHead(404);
 	    res.end();
 	}
     });
 });
 
-web_server.listen(80);
+// start web server
+web_server.listen(config.web_listen.port, config.web_listen.ip);
 
+// hook socket.io up to the web server
 var socket = io.listen(web_server);
 
+// utility function to convert bytes into two-digit hex
 var hex_dump = function(data) {
     var hex = "";
     for(var i=0; i<data.length; ++i) {
@@ -92,13 +183,14 @@ var hex_dump = function(data) {
     return hex;
 };
 
+// protocol parser
 var parser = (function() {
     var Parser = function() {
 	this.buffs = {};
     };
     
     var ParseError = function(requested, had) {
-	console.log("parse error thrown");
+	util.log("parse error thrown");
 	this.requested = requested;
 	this.had = had;
     };
@@ -196,15 +288,15 @@ var parser = (function() {
 		msg[fields[j]] = d;
 		break;
 	    case 'S':
-		console.log('parsing string, current pos: ' + pos + '; buffer.length: ' + buffer.length);
+		//util.log('parsing string, current pos: ' + pos + '; buffer.length: ' + buffer.length);
 		if((pos+1) >= buffer.length) return -1;
 		var len = parse_short(buffer.slice(pos));
 		pos += 2;
-		console.log('...pos: ' + pos + '; len: ' + len);
+		//util.log('...pos: ' + pos + '; len: ' + len);
 		if((pos+len-1) >= buffer.length) return -1;
 		var S = buffer.toString('utf8', pos, pos + len);
 		pos += len;
-		console.log('...pos: ' + pos + '; S: ' + S);
+		//util.log('...pos: ' + pos + '; S: ' + S);
 		msg[fields[j]] = S;
 		break;
 	    case 'B':
@@ -348,15 +440,15 @@ var parser = (function() {
 		break;
 	    }
 	}
-	//console.log('packet: ' + msg['packet'] + '; pos: ' + pos);
+	//util.log('packet: ' + msg['packet'] + '; pos: ' + pos);
 	msg['raw'] = hex_dump(buffer.slice(0, pos));
 	socket.broadcast(msg);
 	return pos;
     };
 
     Parser.prototype.Read = function(data, msg) {
-	//console.log('read called, length: ' + data.length);
-	//console.log('buff: ' + hex_dump(data));
+	//util.log('read called, length: ' + data.length);
+	//util.log('buff: ' + hex_dump(data));
 	var format = '';
 	var fields = [];
 	switch(data[0]) {
@@ -635,9 +727,9 @@ var parser = (function() {
 	msg['packet'] += ' (0x' + Number(data[0]).toString(16) + ')';
 	var pos = parse_packet(data, msg, format, fields);
 	// if(pos < 0) {
-	//     console.log('packet not big enough');
+	//     util.log('packet not big enough');
 	// } else {
-	//     console.log('successfully parsed packet "' + msg['packet'] + '", pos: ' + pos);
+	//     util.log('successfully parsed packet "' + msg['packet'] + '", pos: ' + pos);
 	// }
 	return pos;
     };
@@ -645,11 +737,18 @@ var parser = (function() {
     return new Parser();
 })();
 
-var mutex = new Mutex();
-
+// start listening for minecraft clients
 var mc_server = net.createServer(function(c) {
-    console.log('new mc connection: ' + c.remoteAddress);
+    util.log('config: ' + util.inspect(config, false, null));
+    if(!inRange(c.remoteAddress, config.mc_listen.allow_range) ||
+       inRange(c.remoteAddress, config.mc_listen.deny_range)) {
+	c.end();
+	util.log('denied connection from ' + c.remoteAddress);
+	return;
+    }
+    util.log('new client connection: ' + c.remoteAddress);
 
+    // create a new connection to the server
     var mc = new net.Socket();
     mc.on('connect', function() {
 	c.pipe(mc);
@@ -709,9 +808,10 @@ var mc_server = net.createServer(function(c) {
     c.on('close', function(had_error) {
 	mc.end();
     });
-    mc.connect(25566);
+    mc.connect(config.server.port, config.server.ip);
 });
 
-mc_server.listen(25565, null, function(){
-    console.log('listening for minecraft clients');
+// start the server
+mc_server.listen(config.mc_listen.port, config.mc_listen.ip, function(){
+    util.log('listening for minecraft clients');
 });
