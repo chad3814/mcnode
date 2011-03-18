@@ -441,7 +441,7 @@ var parser = (function() {
 	    }
 	}
 	//util.log('packet: ' + msg['packet'] + '; pos: ' + pos);
-	msg['raw'] = hex_dump(buffer.slice(0, pos));
+	//msg['raw'] = hex_dump(buffer.slice(0, pos));
 	socket.broadcast(msg);
 	return pos;
     };
@@ -462,7 +462,7 @@ var parser = (function() {
 	    msg['packet'] = 'Login Request';
 	    format = 'iSSlb';
 	    if(msg['from'] == 'server') {
-		fields = ['Protocol Version', 'Username', 'Password', 'Map Seed', 'Dimension'];
+		fields = ['Player EntityID', 'Username', 'Password', 'Map Seed', 'Dimension'];
 	    } else {
 		fields = ['Protocol Version', 'Username', 'Password', 'not used', 'not used'];
 	    }
@@ -556,7 +556,7 @@ var parser = (function() {
 	    fields = ['Slot'];
 	    break;
 	case 0x12:
-	    msg[packet] = 'Animation';
+	    msg['packet'] = 'Animation';
 	    format = 'ib';
 	    fields = ['Player EntityID', 'Animate'];
 	    break;
@@ -568,7 +568,7 @@ var parser = (function() {
 	case 0x14:
 	    msg['packet'] = 'Named Entity Spawn';
 	    format = 'iSiiibbs';
-	    fields = ['Player EntityID', 'Player Name', 'X', 'Y', 'Z', 'Rotation', 'Pitch', 'Current Item'];
+	    fields = ['Player EntityID', 'Player Name', 'X', 'Y', 'Z', 'Yaw', 'Pitch', 'Current Item'];
 	    break;
 	case 0x15:
 	    msg['packet'] = 'Pickup Spawn';
@@ -725,6 +725,7 @@ var parser = (function() {
 	}
 
 	msg['packet'] += ' (0x' + Number(data[0]).toString(16) + ')';
+	msg['packetid'] = data[0];
 	var pos = parse_packet(data, msg, format, fields);
 	// if(pos < 0) {
 	//     util.log('packet not big enough');
